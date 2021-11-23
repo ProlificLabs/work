@@ -18,6 +18,7 @@ type worker struct {
 	pool          *redis.Pool
 	jobTypes      map[string]*jobType
 	sleepBackoffs []int64
+	errHandler    func(error)
 	middleware    []*middlewareHandler
 	contextType   reflect.Type
 
@@ -32,7 +33,7 @@ type worker struct {
 	doneDrainingChan chan struct{}
 }
 
-func newWorker(namespace string, poolID string, pool *redis.Pool, contextType reflect.Type, middleware []*middlewareHandler, jobTypes map[string]*jobType, sleepBackoffs []int64) *worker {
+func newWorker(namespace string, poolID string, pool *redis.Pool, contextType reflect.Type, middleware []*middlewareHandler, jobTypes map[string]*jobType, sleepBackoffs []int64, errHandler func(error)) *worker {
 	workerID := makeIdentifier()
 	ob := newObserver(namespace, pool, workerID)
 
@@ -47,6 +48,7 @@ func newWorker(namespace string, poolID string, pool *redis.Pool, contextType re
 		pool:          pool,
 		contextType:   contextType,
 		sleepBackoffs: sleepBackoffs,
+		errHandler:    errHandler,
 
 		observer: ob,
 
@@ -146,7 +148,7 @@ func (w *worker) fetchJob() (*Job, error) {
 	// NOTE: we could optimize this to only resort every second, or something.
 	w.sampler.sample()
 	numKeys := len(w.sampler.samples) * fetchKeysPerJobType
-	var scriptArgs = make([]interface{}, 0, numKeys+1)
+	scriptArgs := make([]interface{}, 0, numKeys+1)
 
 	for _, s := range w.sampler.samples {
 		scriptArgs = append(scriptArgs, s.redisJobs, s.redisJobsInProg, s.redisJobsPaused, s.redisJobsLock, s.redisJobsLockInfo, s.redisJobsMaxConcurrency) // KEYS[1-6 * N]
@@ -215,6 +217,9 @@ func (w *worker) processJob(job *Job) {
 	if runErr != nil {
 		job.failed(runErr)
 		fate = w.jobFate(jt, job)
+		if w.errHandler != nil {
+			w.errHandler(runErr)
+		}
 	}
 	w.removeJobFromInProgress(job, fate)
 }
@@ -291,6 +296,7 @@ func terminateAndRetry(w *worker, jt *jobType, job *Job) terminateOp {
 		conn.Send("ZADD", redisKeyRetry(w.namespace), nowEpochSeconds()+jt.calcBackoff(job), rawJSON)
 	}
 }
+
 func terminateAndDead(w *worker, job *Job) terminateOp {
 	rawJSON, err := job.serialize()
 	if err != nil {

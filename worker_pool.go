@@ -17,6 +17,7 @@ type WorkerPool struct {
 	namespace     string // eg, "myapp-work"
 	pool          *redis.Pool
 	sleepBackoffs []int64
+	errHandler    func(error)
 
 	contextType  reflect.Type
 	jobTypes     map[string]*jobType
@@ -65,7 +66,8 @@ type JobOptions struct {
 
 // WorkerPoolOptions can be passed to NewWorkerPoolWithOptions.
 type WorkerPoolOptions struct {
-	SleepBackoffs []int64 // Sleep backoffs in milliseconds
+	SleepBackoffs []int64     // Sleep backoffs in milliseconds
+	ErrHandler    func(error) // Error hanlder
 }
 
 // GenericHandler is a job handler without any custom context.
@@ -83,6 +85,8 @@ type middlewareHandler struct {
 	GenericMiddlewareHandler GenericMiddlewareHandler
 }
 
+func defaultErrHandler(err error) {}
+
 // NewWorkerPool creates a new worker pool. ctx should be a struct literal whose type will be used for middleware and handlers.
 // concurrency specifies how many workers to spin up - each worker can process jobs concurrently.
 func NewWorkerPool(ctx interface{}, concurrency uint, namespace string, pool *redis.Pool) *WorkerPool {
@@ -96,6 +100,10 @@ func NewWorkerPoolWithOptions(ctx interface{}, concurrency uint, namespace strin
 		panic("NewWorkerPool needs a non-nil *redis.Pool")
 	}
 
+	if workerPoolOpts.ErrHandler == nil {
+		workerPoolOpts.ErrHandler = defaultErrHandler
+	}
+
 	ctxType := reflect.TypeOf(ctx)
 	validateContextType(ctxType)
 	wp := &WorkerPool{
@@ -104,12 +112,13 @@ func NewWorkerPoolWithOptions(ctx interface{}, concurrency uint, namespace strin
 		namespace:     namespace,
 		pool:          pool,
 		sleepBackoffs: workerPoolOpts.SleepBackoffs,
+		errHandler:    workerPoolOpts.ErrHandler,
 		contextType:   ctxType,
 		jobTypes:      make(map[string]*jobType),
 	}
 
 	for i := uint(0); i < wp.concurrency; i++ {
-		w := newWorker(wp.namespace, wp.workerPoolID, wp.pool, wp.contextType, nil, wp.jobTypes, wp.sleepBackoffs)
+		w := newWorker(wp.namespace, wp.workerPoolID, wp.pool, wp.contextType, nil, wp.jobTypes, wp.sleepBackoffs, wp.errHandler)
 		wp.workers = append(wp.workers, w)
 	}
 

@@ -61,7 +61,7 @@ func TestWorkerBasics(t *testing.T) {
 	_, err = enqueuer.Enqueue(job3, Q{"a": 3})
 	assert.Nil(t, err)
 
-	w := newWorker(ns, "1", pool, tstCtxType, nil, jobTypes, nil)
+	w := newWorker(ns, "1", pool, tstCtxType, nil, jobTypes, nil, nil)
 	w.start()
 	w.drain()
 	w.stop()
@@ -111,7 +111,7 @@ func TestWorkerInProgress(t *testing.T) {
 	_, err := enqueuer.Enqueue(job1, Q{"a": 1})
 	assert.Nil(t, err)
 
-	w := newWorker(ns, "1", pool, tstCtxType, nil, jobTypes, nil)
+	w := newWorker(ns, "1", pool, tstCtxType, nil, jobTypes, nil, nil)
 	w.start()
 
 	// instead of w.forceIter(), we'll wait for 10 milliseconds to let the job start
@@ -162,7 +162,7 @@ func TestWorkerRetry(t *testing.T) {
 	enqueuer := NewEnqueuer(ns, pool)
 	_, err := enqueuer.Enqueue(job1, Q{"a": 1})
 	assert.Nil(t, err)
-	w := newWorker(ns, "1", pool, tstCtxType, nil, jobTypes, nil)
+	w := newWorker(ns, "1", pool, tstCtxType, nil, jobTypes, nil, nil)
 	w.start()
 	w.drain()
 	w.stop()
@@ -214,7 +214,7 @@ func TestWorkerRetryWithCustomBackoff(t *testing.T) {
 	enqueuer := NewEnqueuer(ns, pool)
 	_, err := enqueuer.Enqueue(job1, Q{"a": 1})
 	assert.Nil(t, err)
-	w := newWorker(ns, "1", pool, tstCtxType, nil, jobTypes, nil)
+	w := newWorker(ns, "1", pool, tstCtxType, nil, jobTypes, nil, nil)
 	w.start()
 	w.drain()
 	w.stop()
@@ -271,7 +271,7 @@ func TestWorkerDead(t *testing.T) {
 	assert.Nil(t, err)
 	_, err = enqueuer.Enqueue(job2, nil)
 	assert.Nil(t, err)
-	w := newWorker(ns, "1", pool, tstCtxType, nil, jobTypes, nil)
+	w := newWorker(ns, "1", pool, tstCtxType, nil, jobTypes, nil, nil)
 	w.start()
 	w.drain()
 	w.stop()
@@ -324,7 +324,7 @@ func TestWorkersPaused(t *testing.T) {
 	_, err := enqueuer.Enqueue(job1, Q{"a": 1})
 	assert.Nil(t, err)
 
-	w := newWorker(ns, "1", pool, tstCtxType, nil, jobTypes, nil)
+	w := newWorker(ns, "1", pool, tstCtxType, nil, jobTypes, nil, nil)
 	// pause the jobs prior to starting
 	err = pauseJobs(ns, job1, pool)
 	assert.Nil(t, err)
@@ -611,7 +611,7 @@ func TestWorkerPoolStop(t *testing.T) {
 		return nil
 	})
 
-	var enqueuer = NewEnqueuer(ns, pool)
+	enqueuer := NewEnqueuer(ns, pool)
 
 	for i := 0; i <= num_iters; i++ {
 		enqueuer.Enqueue("sample_job", Q{})
