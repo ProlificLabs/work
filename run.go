@@ -3,6 +3,7 @@ package work
 import (
 	"fmt"
 	"reflect"
+	"runtime"
 	"runtime/debug"
 )
 
@@ -46,12 +47,39 @@ func runJob(job *Job, ctxType reflect.Type, middleware []*middlewareHandler, jt 
 			errorishError := fmt.Errorf("%v", panicErr)
 			logError("runJob.panic", errorishError)
 
-			// now make a good error with message and stack trace
-			returnError = fmt.Errorf("job %q panic with: %v\nargs: %v\n%s\n", job.Name, panicErr, job.Args, string(debug.Stack()))
+			// Create a much more introspectable error message.
+			ptrs := make([]uintptr, 100)
+			n := runtime.Callers(1, ptrs)
+			ptrs = ptrs[:n]
+			returnError = PanicErr{
+				Cause: errorishError,
+
+				JobName: job.Name,
+				JobArgs: job.Args,
+
+				Frames:     ptrs,
+				Stacktrace: string(debug.Stack()),
+			}
 		}
 	}()
 
 	returnError = next()
 
 	return
+}
+
+// PanicErr is given to the error handler in the case of a panic.
+type PanicErr struct {
+	Cause error
+
+	JobName string
+	JobArgs map[string]interface{}
+
+	Frames     []uintptr
+	Stacktrace string
+}
+
+// Error interface impl
+func (p PanicErr) Error() string {
+	return p.Cause.Error()
 }

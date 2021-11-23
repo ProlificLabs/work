@@ -139,7 +139,13 @@ func TestRunHandlerPanic(t *testing.T) {
 
 	_, err := runJob(job, tstCtxType, middleware, jt)
 	assert.Error(t, err)
-	assert.Contains(t, "dayam", err.Error())
+	assert.Equal(t, "dayam", err.Error())
+	assert.IsType(t, PanicErr{}, err)
+	p := err.(PanicErr)
+	assert.Equal(t, p.JobName, "foo")
+	assert.Nil(t, p.JobArgs)
+	assert.NotEmpty(t, p.Frames)
+	assert.Contains(t, p.Stacktrace, "run_test.go")
 }
 
 func TestRunMiddlewarePanic(t *testing.T) {
